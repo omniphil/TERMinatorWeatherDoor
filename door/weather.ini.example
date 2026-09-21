@@ -1,0 +1,14 @@
+# TERMinator Weather door settings. Copy to weather.ini beside the binary.
+
+# Where callers start before they choose their own place (they can change it
+# any time with L). Use the board's own town.
+default_place = New York, New York
+default_lat   = 40.7128
+default_lon   = -74.0060
+
+# imperial (F, mph, inches) or metric (C, km/h, hPa) for new callers.
+units = imperial
+
+# How long a forecast is reused before fetching again. Callers near each other
+# share it, so a busy board makes few requests. Minimum 5.
+cache_minutes = 15

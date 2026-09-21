@@ -1,0 +1,8 @@
+door/obj/
+door/native/
+door/saves/
+door/cache/
+door/weatherdoor
+door/weather.ini
+*.wasm
+__pycache__/
