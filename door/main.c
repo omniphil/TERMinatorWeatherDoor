@@ -60,19 +60,6 @@ static void press_any_key(void)
     door_read_char();
 }
 
-static long now_ms(void)
-{
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec * 1000L + ts.tv_nsec / 1000000L;
-}
-
-static void sleep_ms(int ms)
-{
-    struct timespec ts = { ms / 1000, (long)(ms % 1000) * 1000000L };
-    nanosleep(&ts, NULL);
-}
-
 /* ---------------------------------------------------------- the module --- */
 
 static tdoor_blob_t g_module;
@@ -91,43 +78,15 @@ static void load_module_files(void)
     g_haveModule = tdoor_load_blob("weather.wasm", &g_module, 8 * 1024 * 1024);
 }
 
-/*
- * "Detecting TRACE graphics...", centred, with a dot every quarter second for
- * one second, like the DOOM door. The question itself takes a
- * moment; this is so the screen isn't sitting there silently.
- */
-static int detect_with_animation(void)
+/* Asks the terminal what it is. TERMinator answers in milliseconds; a terminal
+ * without TRACE never answers, and the question gives up after half a second.
+ * The start menu shows the result, so this needs no screen of its own. */
+static int detect_terminal(void)
 {
-    static const char message[] = "Detecting TRACE graphics";
-    const int dots = 4;
-    const int width = (int)sizeof(message) - 1 + dots;
-    int column = (80 - width) / 2 + 1;
-    int found = TERM_PLAIN;
-
-    cls();
-    door_write(CSI "12;1H");
-    {
-        char at[16];
-        snprintf(at, sizeof(at), CSI "%dC", column - 1);
-        door_write(at);
-    }
-    door_write(CSI "0;37m" "Detecting " CSI "1;35m" "TRACE" CSI "0;37m" " graphics.");
-
-    long start = now_ms();
-    int shown = 1;
-    sleep_ms(250);
-    if (g_haveModule) {
-        static const char *const need[] = { "send=1", NULL };
-        if (tdoor_detect(need)) found = tdoor_has("mouse=1") ? TERM_TRACE : TERM_TRACE_OLD;
-    }
-    while (shown < dots) {
-        long elapsed = now_ms() - start;
-        if (elapsed >= 1000) break;
-        if (elapsed >= (long)shown * 250) { door_write("."); shown++; }
-        else sleep_ms(25);
-    }
-    door_write(CSI "0m");
-    return found;
+    if (!g_haveModule) return TERM_PLAIN;
+    static const char *const need[] = { "send=1", NULL };
+    if (!tdoor_detect(need)) return TERM_PLAIN;
+    return tdoor_has("mouse=1") ? TERM_TRACE : TERM_TRACE_OLD;
 }
 
 static void draw_menu(int term, int recommended)
@@ -382,7 +341,7 @@ int main(int argc, char *argv[])
     load_module_files();
 
     title();
-    int term = detect_with_animation();
+    int term = detect_terminal();
 
     int choice = choose_display(term);
     int status = 0;
