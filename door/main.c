@@ -92,14 +92,14 @@ static void load_module_files(void)
 }
 
 /*
- * "Detecting TRACE graphics...", centred, with a dot every quarter second for a
- * couple of seconds, exactly like the DOOM door. The question itself takes a
+ * "Detecting TRACE graphics...", centred, with a dot every quarter second for
+ * one second, like the DOOM door. The question itself takes a
  * moment; this is so the screen isn't sitting there silently.
  */
 static int detect_with_animation(void)
 {
     static const char message[] = "Detecting TRACE graphics";
-    const int dots = 8;
+    const int dots = 4;
     const int width = (int)sizeof(message) - 1 + dots;
     int column = (80 - width) / 2 + 1;
     int found = TERM_PLAIN;
@@ -122,7 +122,7 @@ static int detect_with_animation(void)
     }
     while (shown < dots) {
         long elapsed = now_ms() - start;
-        if (elapsed >= 2000) break;
+        if (elapsed >= 1000) break;
         if (elapsed >= (long)shown * 250) { door_write("."); shown++; }
         else sleep_ms(25);
     }
