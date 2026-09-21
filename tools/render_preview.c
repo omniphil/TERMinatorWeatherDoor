@@ -5,6 +5,7 @@
 //
 //   make -C tools preview && ./tools/preview [options] out.ppm
 //     --scale 1|2       render scale (default 2)
+//     --window W H      the window size TERMinator reports (device pixels)
 //     --code N          force the WMO weather code (sky and icons)
 //     --hour H          pretend it is H:00 local time today
 //     --hover I         hover chart hour I
@@ -73,6 +74,7 @@ static void feed(uint8_t type, uint16_t count, const void *body, uint32_t len)
 
 int main(int argc, char **argv)
 {
+    int winW = 0, winH = 0;
     int scale = 2, code = -1, hour = -1, hover = -1, day = -1, picker = 0, loading = 0, metric = 0;
     float t = 3;
     double lat = 45.5235, lon = -122.6762;
@@ -80,6 +82,7 @@ int main(int argc, char **argv)
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
         if (!strcmp(a, "--scale")) scale = atoi(argv[++i]);
+        else if (!strcmp(a, "--window")) { winW = atoi(argv[++i]); winH = atoi(argv[++i]); }
         else if (!strcmp(a, "--code")) code = atoi(argv[++i]);
         else if (!strcmp(a, "--hour")) hour = atoi(argv[++i]);
         else if (!strcmp(a, "--hover")) hover = atoi(argv[++i]);
@@ -95,7 +98,8 @@ int main(int argc, char **argv)
     }
 
     trace_init();
-    trace_on_resize(scale == 2 ? 1400 : 800, scale == 2 ? 1050 : 600);
+    if (winW) trace_on_resize(winW, winH);
+    else trace_on_resize(scale == 2 ? 1400 : 640, scale == 2 ? 1050 : 480);
     trace_on_data("start", 5);
 
     if (!loading) {

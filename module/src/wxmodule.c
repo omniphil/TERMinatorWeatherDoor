@@ -361,6 +361,120 @@ static void fit(int f, const char *s, float maxw, char *out, size_t size)
     }
 }
 
+// ------------------------------------------------------------ presenting ---
+//
+// TERMinator fits the picture into its window at 4:3 and scales it with
+// nearest-neighbour. Shrinking that way drops whole rows and columns, so thin
+// strokes vanish here and there and text looks nicked. So the module works out
+// the exact size the picture will be shown at (trace_on_resize gives the
+// window's device pixels), renders at 2x, and hands over a frame of exactly that
+// size, shrunk with an area-averaging filter. Bigger than the 2x frame, the 2x
+// frame goes as it is: nearest-neighbour only ever duplicates pixels then.
+
+static int g_dispW = LW, g_dispH = LH;     // the picture on screen, device pixels
+static int g_presW = LW, g_presH = LH;     // the frame last presented (mouse positions are in this)
+
+// Call from trace_on_resize: the largest 4:3 rectangle in the window.
+static void set_display(int32_t w, int32_t h)
+{
+    if (w <= 0 || h <= 0) return;
+    if ((int64_t)w * 3 > (int64_t)h * 4) { g_dispH = h; g_dispW = h * 4 / 3; }
+    else { g_dispW = w; g_dispH = w * 3 / 4; }
+    g_wantS = g_dispW > 700 ? 2 : 1;
+}
+
+// One axis of the area filter: for each output pixel, the source pixels it
+// covers and how much of each (weights in 1/256, summing to 256).
+typedef struct { int first, count; uint16_t w[4]; } Span;
+
+static Span *spans(int src, int dst)
+{
+    Span *s = malloc(sizeof(Span) * (size_t)dst);
+    if (!s) return NULL;
+    double scale = (double)src / dst;
+    for (int i = 0; i < dst; i++) {
+        double a = i * scale, b = (i + 1) * scale;
+        int first = (int)a, last = (int)ceil(b) - 1;
+        if (last >= src) last = src - 1;
+        if (last - first + 1 > 4) last = first + 3;
+        s[i].first = first;
+        s[i].count = last - first + 1;
+        int total = 0;
+        for (int k = 0; k < s[i].count; k++) {
+            double lo = first + k > a ? first + k : a, hi = first + k + 1 < b ? first + k + 1 : b;
+            int wgt = (int)lround((hi - lo) / scale * 256);
+            if (wgt < 0) wgt = 0;
+            s[i].w[k] = (uint16_t)wgt;
+            total += wgt;
+        }
+        s[i].w[0] = (uint16_t)(s[i].w[0] + 256 - total);   // rounding goes to the first
+    }
+    return s;
+}
+
+static void present_fitted(int32_t flags)
+{
+    if (g_dispW >= g_W || g_dispW < 64) {
+        g_presW = g_W;
+        g_presH = g_H;
+        trace_present(g_frame, g_W, g_H, flags);
+        return;
+    }
+    static uint32_t *tmp = NULL, *out = NULL;
+    static Span *sx = NULL, *sy = NULL;
+    static int forW = 0, forH = 0, fromW = 0, fromH = 0;
+    int dw = g_dispW, dh = g_dispH;
+    if (dw != forW || dh != forH || g_W != fromW || g_H != fromH) {
+        free(tmp); free(out); free(sx); free(sy);
+        tmp = malloc((size_t)dw * g_H * 4);
+        out = malloc((size_t)dw * dh * 4);
+        sx = spans(g_W, dw);
+        sy = spans(g_H, dh);
+        forW = dw; forH = dh; fromW = g_W; fromH = g_H;
+        if (!tmp || !out || !sx || !sy) {
+            free(tmp); free(out); free(sx); free(sy);
+            tmp = out = NULL; sx = sy = NULL; forW = forH = 0;
+            trace_present(g_frame, g_W, g_H, flags);
+            return;
+        }
+    }
+    // Across, then down; red and blue ride together in one word, green alone.
+    for (int y = 0; y < g_H; y++) {
+        const uint32_t *row = g_frame + y * g_W;
+        uint32_t *o = tmp + y * dw;
+        for (int x = 0; x < dw; x++) {
+            const Span *s = &sx[x];
+            uint32_t rb = 0, g = 0;
+            for (int k = 0; k < s->count; k++) {
+                uint32_t p = row[s->first + k], w = s->w[k];
+                rb += (p & 0x00FF00FFu) * w;
+                g  += (p & 0x0000FF00u) * w;
+            }
+            o[x] = ((rb >> 8) & 0x00FF00FFu) | ((g >> 8) & 0x0000FF00u) | 0xFF000000u;
+        }
+    }
+    for (int y = 0; y < dh; y++) {
+        const Span *s = &sy[y];
+        uint32_t *o = out + y * dw;
+        for (int x = 0; x < dw; x++) {
+            uint32_t rb = 0, g = 0;
+            for (int k = 0; k < s->count; k++) {
+                uint32_t p = tmp[(s->first + k) * dw + x], w = s->w[k];
+                rb += (p & 0x00FF00FFu) * w;
+                g  += (p & 0x0000FF00u) * w;
+            }
+            o[x] = ((rb >> 8) & 0x00FF00FFu) | ((g >> 8) & 0x0000FF00u) | 0xFF000000u;
+        }
+    }
+    g_presW = dw;
+    g_presH = dh;
+    trace_present(out, dw, dh, flags);
+}
+
+// A mouse position (in the presented frame's pixels) in layout coordinates.
+static float mouse_lx(int32_t x) { return (float)x * LW / (g_presW ? g_presW : LW); }
+static float mouse_ly(int32_t y) { return (float)y * LH / (g_presH ? g_presH : LH); }
+
 // ------------------------------------------------------------------- data ---
 
 static WxCurrent g_cur;
@@ -1935,9 +2049,7 @@ void  trace_free(void *ptr)     { free(ptr); }
 
 void trace_on_resize(int32_t width, int32_t height)
 {
-    // Render at 2x once the picture is big enough to show it; below that the
-    // host would throw pixels away scaling it down, which is worse than 1x.
-    g_wantS = (width >= 1180 && height >= 880) ? 2 : 1;
+    set_display(width, height);
 }
 
 void trace_on_data(const char *data, int32_t length)
@@ -2128,8 +2240,8 @@ void trace_on_input(int32_t type, int32_t flags, int32_t a, int32_t b, int32_t c
     }
 
     case TRACE_INPUT_MOUSE_POS:
-        g_mx = (float)b / g_S;
-        g_my = (float)c / g_S;
+        g_mx = mouse_lx(b);
+        g_my = mouse_ly(c);
         g_mouseOver = flags & 1;
         g_haveMouse = 1;
         if (g_picker) {
@@ -2216,5 +2328,5 @@ void trace_update(void)
     draw_footer();
     if (g_picker) draw_picker();
 
-    trace_present(g_frame, g_W, g_H, TRACE_PRESENT_ASPECT_4_3);
+    present_fitted(TRACE_PRESENT_ASPECT_4_3);
 }

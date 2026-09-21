@@ -31,6 +31,7 @@ static bool             g_binary;         /* the terminal takes binary frames (b
 static bool             g_open;
 static char             g_have_hash[65];
 static char             g_close_reason[128];
+static int              g_close_code;
 
 void tdoor_init(const char *module_id, tdoor_message_fn on_message)
 {
@@ -295,6 +296,8 @@ static int handle_reply(char *buf, size_t n)
          * this TERMinator doesn't have) reports it here, and without it a door
          * can only say "it didn't work". */
         const char *why = strstr(fields, ";error=");
+        const char *code = strstr(fields, ";code=");
+        g_close_code = code != NULL ? atoi(code + 6) : 0;
         g_close_reason[0] = '\0';
         if (why != NULL) {
             size_t n = 0;
@@ -359,9 +362,23 @@ const char *tdoor_last_close_reason(void)
     return g_close_reason;
 }
 
+int tdoor_last_close_code(void)
+{
+    return g_close_code;
+}
+
 const char *tdoor_info(void)
 {
-    return g_info;
+    /* The reply as printable text: its fields without the ESC _ ... ESC \ around
+     * them. Printed raw, those would be a command to the terminal, which then
+     * swallows everything after it. */
+    static char clean[sizeof(g_info)];
+    const char *p = strstr(g_info, "TERMinator:TRACE;");
+    size_t n = 0;
+    for (p = p ? p + 17 : g_info; *p && n < sizeof(clean) - 1; p++)
+        if ((unsigned char)*p >= 0x20 && *p != 0x7F) clean[n++] = *p;
+    clean[n] = '\0';
+    return clean;
 }
 
 /* ---- sending ---- */

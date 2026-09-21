@@ -304,14 +304,16 @@ static int play_trace(void)
         }
         if (door_time_remaining() <= 0) break;
     }
-    bool diedEarly = time(NULL) - began < 3;
     tdoor_close("quit", 2000);
+    (void)began;
 
-    if (diedEarly) {
+    /* A module that failed says so: a non-zero code, usually with a reason.
+     * A quick quit is just a quick quit. */
+    if (tdoor_last_close_code() != 0 || tdoor_last_close_reason()[0]) {
         /* The picture opened and shut straight away: the module didn't run on the
          * caller's machine. Say why instead of pretending all is well. */
         title();
-        door_write(CSI "1;31m  The picture closed straight away.\r\n" CSI "0m");
+        door_write(CSI "1;31m  The picture stopped with an error.\r\n" CSI "0m");
         const char *why = tdoor_last_close_reason();
         char line[200];
         snprintf(line, sizeof line, CSI "1;33m  Reason: %s\r\n" CSI "0m", (why && *why) ? why : "(none given)");

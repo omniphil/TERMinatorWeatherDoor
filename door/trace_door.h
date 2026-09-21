@@ -71,7 +71,12 @@ const char *tdoor_last_have_hash(void);
  * closed normally. A module that fails to start reports its reason here. */
 const char *tdoor_last_close_reason(void);
 
-/* The raw Query reply, for diagnostics -- which capabilities this terminal has. */
+/* The exit code in the last Closed reply: 0 when the module quit by itself (the
+ * player left), non-zero when it crashed or couldn't start (see the reason). */
+int tdoor_last_close_code(void);
+
+/* The Query reply's fields as printable text, for diagnostics -- which
+ * capabilities this terminal has. Safe to print. */
 const char *tdoor_info(void);
 
 /* Offers an asset by hash and uploads it only if the terminal doesn't have it yet. progress gets 0-100. */
