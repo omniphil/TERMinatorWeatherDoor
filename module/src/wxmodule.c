@@ -368,8 +368,10 @@ static void fit(int f, const char *s, float maxw, char *out, size_t size)
 // strokes vanish here and there and text looks nicked. So the module works out
 // the exact size the picture will be shown at (trace_on_resize gives the
 // window's device pixels), renders at 2x, and hands over a frame of exactly that
-// size, shrunk with an area-averaging filter. Bigger than the 2x frame, the 2x
-// frame goes as it is: nearest-neighbour only ever duplicates pixels then.
+// size, shrunk with an area-averaging filter. Bigger than the 2x frame (1440x1080
+// on a 1080p screen, say), it is grown to that size with a bilinear filter:
+// left to TERMinator, a stretch of 1.125 doubles every 8th row and column, and
+// text comes out jagged.
 
 static int g_dispW = LW, g_dispH = LH;     // the picture on screen, device pixels
 static int g_presW = LW, g_presH = LH;     // the frame last presented (mouse positions are in this)
@@ -391,6 +393,20 @@ static Span *spans(int src, int dst)
 {
     Span *s = malloc(sizeof(Span) * (size_t)dst);
     if (!s) return NULL;
+    if (dst > src) {    // growing: bilinear, the two source pixels either side of the centre
+        for (int i = 0; i < dst; i++) {
+            double c = (i + 0.5) * src / dst - 0.5;
+            if (c < 0) c = 0;
+            int first = (int)c;
+            if (first >= src - 1) { s[i].first = src - 1; s[i].count = 1; s[i].w[0] = 256; continue; }
+            int f = (int)lround((c - first) * 256);
+            s[i].first = first;
+            s[i].count = 2;
+            s[i].w[0] = (uint16_t)(256 - f);
+            s[i].w[1] = (uint16_t)f;
+        }
+        return s;
+    }
     double scale = (double)src / dst;
     for (int i = 0; i < dst; i++) {
         double a = i * scale, b = (i + 1) * scale;
@@ -414,7 +430,15 @@ static Span *spans(int src, int dst)
 
 static void present_fitted(int32_t flags)
 {
-    if (g_dispW >= g_W || g_dispW < 64) {
+    static int32_t capW = 0, capH = 0;
+    if (capW <= 0 || capH <= 0) {
+        trace_frame_capacity(&capW, &capH);
+        if (capW <= 0 || capH <= 0) { capW = g_W; capH = g_H; }
+    }
+    int dw = g_dispW, dh = g_dispH;
+    if (dw > capW) { dw = capW; dh = dw * 3 / 4; }
+    if (dh > capH) { dh = capH; dw = dh * 4 / 3; }
+    if (dw == g_W || dw < 64) {
         g_presW = g_W;
         g_presH = g_H;
         trace_present(g_frame, g_W, g_H, flags);
@@ -423,7 +447,6 @@ static void present_fitted(int32_t flags)
     static uint32_t *tmp = NULL, *out = NULL;
     static Span *sx = NULL, *sy = NULL;
     static int forW = 0, forH = 0, fromW = 0, fromH = 0;
-    int dw = g_dispW, dh = g_dispH;
     if (dw != forW || dh != forH || g_W != fromW || g_H != fromH) {
         free(tmp); free(out); free(sx); free(sy);
         tmp = malloc((size_t)dw * g_H * 4);
