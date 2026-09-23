@@ -50,11 +50,11 @@ static const Palette PALETTES[THEME_COUNT] = {
     { 0x07020F, 0x14062C, 0x0E0620, 0x120A24, 0x2A0E4A, 0x3E1C6A, 0x7A3CFF, 0xF4F0FF, 0xB3A3D9, 0x6E5C99,
       0x00F0FF, 0xFF2BD6, 0x3D8BFF, 0xF9F002, 0xF9F002, 0xFF2A6D, 0x05FFA1,
       0x1E0C3A, 0x2A0E4A, 0x07020F, 0x120A24, 0xEDE6FF, 0xC7B8EE, 0x3A1060, 0xF4F0FF },
-    // HACKER: a green phosphor terminal. The whole frame goes through phosphor()
-    // at the end, so these only need the right brightness.
-    { 0x000000, 0x020A04, 0x030C05, 0x030A05, 0x0A2412, 0x163F22, 0x2E6B40, 0x9ED8AC, 0x5FA374, 0x346B44,
-      0x6AD8B4, 0x8FD6A2, 0x5EDB6E, 0xCFE08A, 0xCFE08A, 0x5EDB6E, 0xA8D86A,
-      0x07180C, 0x0A2412, 0x000000, 0x030A05, 0x9ED8AC, 0x74B888, 0x5EDB6E, 0x021008 },
+    // HACKER: a terminal -- green frames and inverse-video selection, off-white
+    // text, and the xterm colours for everything that carries meaning.
+    { 0x000000, 0x050807, 0x060A08, 0x07090A, 0x0F1512, 0x1C5A2E, 0x3FBF62, 0xDCE0DC, 0x9CA59F, 0x5F6862,
+      0x5FD7FF, 0xFF5FD7, 0x5F87FF, 0xFFB000, 0xFFB000, 0xFF5F5F, 0x5FFF87,
+      0x0C1410, 0x0A0F0C, 0x000000, 0x060A08, 0xE4E4E4, 0xB8C0BA, 0x3FBF62, 0x000000 },
 };
 #define PAL (&PALETTES[g_theme])
 
@@ -489,17 +489,6 @@ static void dither_rect(float x, float y, float w, float h)
             }
             row[X] = o;
         }
-    }
-}
-
-// Hacker's whole frame, as a green phosphor screen shows it: brightness only.
-static void phosphor(void)
-{
-    for (int i = 0; i < g_W * g_H; i++) {
-        uint32_t p = g_frame[i];
-        int l = (int)((p >> 16 & 255) * 77 + (p >> 8 & 255) * 150 + (p & 255) * 29) >> 8;
-        g_frame[i] = 0xFF000000u | (uint32_t)(l * 75 / 255) << 16 | (uint32_t)(20 + l * 215 / 255) << 8 |
-                     (uint32_t)(l * 100 / 255);
     }
 }
 
@@ -2062,7 +2051,7 @@ static void draw_bar(void)
     // The place: a button that opens the picker.
     char name[64];
     const char *src = g_haveCur && g_cur.place[0] ? g_cur.place : "Choose a location";
-    float maxw = R_THEME.x - 100 - (x + 20);
+    float maxw = R_THEME.x - 20 - (x + 20);
     fit(F_BODY, src, maxw, name, sizeof name);
     float bw = text_w(F_BODY, name, 0) + 42;
     g_placeBtn = (Rect){ x + 16, 4, bw, 20 };
@@ -2075,15 +2064,6 @@ static void draw_bar(void)
     float chx = g_placeBtn.x + bw - 12;
     line_l(chx - 3, 12, chx, 15, 1.4f, C_TEXT2, 255);
     line_l(chx, 15, chx + 3, 12, 1.4f, C_TEXT2, 255);
-
-    // Local time at the place.
-    if (g_haveCur) {
-        char clock[32], tm[16];
-        fmt_clock(tm, sizeof tm, now_utc(), 1);
-        LocalTime lt = local_time(now_utc());
-        snprintf(clock, sizeof clock, "%s %s", WDAY3[lt.wday], tm);
-        text_r(F_BODY, R_THEME.x - 10, 7, clock, C_TEXT2);
-    }
 
     // The theme button: opens the theme popup.
     const Rect *th = &R_THEME;
@@ -2137,10 +2117,17 @@ static void draw_footer(void)
         if (!g_haveMouse) x = hint(x, y, "R", "refresh");
         hintEnd = hint(x, y, "Esc", "quit");
     }
-    // Open-Meteo's licence (CC BY 4.0) asks for the credit.
-    const char *credit = "Data: Open-Meteo.com";
-    float rx = LW - 12 - text_w(F_SMALL, credit, 0);
-    text(F_SMALL, rx, y + 2, credit, C_TEXT3);
+    // The date and time at the place, bottom right. (Open-Meteo's CC BY 4.0
+    // credit is on the goodbye screen.)
+    float rx = LW - 12;
+    if (g_haveCur) {
+        char clock[40], tm[16];
+        fmt_clock(tm, sizeof tm, now_utc(), 1);
+        LocalTime lt = local_time(now_utc());
+        snprintf(clock, sizeof clock, "%.3s, %s %d  %s", WDAY[lt.wday], MON3[lt.mon], lt.mday, tm);
+        rx -= text_w(F_SMALL, clock, 0);
+        text(F_SMALL, rx, y + 2, clock, C_TEXT3);
+    }
     if (g_haveCur && g_cur.fetchedAt && !showStatus) {
         char tm[16], upd[32];
         fmt_clock(tm, sizeof tm, g_cur.fetchedAt, 1);
@@ -2624,7 +2611,6 @@ void trace_update(void)
     draw_footer();
     if (g_picker) draw_picker();
     else if (g_themesOpen) draw_themes();
-    if (g_theme == THEME_HACKER) phosphor();
 
     present_fitted(TRACE_PRESENT_ASPECT_4_3);
 }
