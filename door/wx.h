@@ -25,6 +25,7 @@ typedef struct {
     double lat, lon;
     int    units;
     int    display;                /* last choice on the start page: 1 TRACE, 2 ANSI, 0 none */
+    int    theme;                  /* TRACE theme: 0 smooth, 1 retro tech, 2 cyberpunk, 3 hacker */
 } WxUserPrefs;
 
 extern WxConfig wx_config;

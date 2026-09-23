@@ -28,7 +28,7 @@ APC = "\033_TERMinator:TRACE;"
 ST = "\033\\"
 
 IN_CURRENT, IN_HOURLY, IN_DAILY, IN_PLACES, IN_STATUS, IN_PREFS = range(1, 7)
-OUT_READY, OUT_SEARCH, OUT_PICK, OUT_UNITS, OUT_REFRESH = range(1, 6)
+OUT_READY, OUT_SEARCH, OUT_PICK, OUT_UNITS, OUT_REFRESH, OUT_THEME = range(1, 7)
 
 ESCAPED = {0x00, 0x0A, 0x0D, 0x11, 0x13, 0x18, 0x1B, ord('='), 0xFF}
 
@@ -336,12 +336,13 @@ def main():
                 name = cur[50:98].split(b"\0")[0].decode()
                 check(name == "Portland, Oregon", f"the pick fetched the new place ({name})")
                 fake.send_module_data(fd, packet(OUT_UNITS, bytes([1])))
+                fake.send_module_data(fd, packet(OUT_THEME, bytes([3])))     # hacker
                 step = "units"
                 step_at = time.time()
             elif step == "units" and time.time() - step_at > 1.5:
                 prefs = open(os.path.join(here, "saves", "Player-0", "prefs")).read()
-                check("Portland, Oregon" in prefs and "units = 1" in prefs and "display = 1" in prefs,
-                      "prefs saved beside the binary: place, units, display")
+                check("Portland, Oregon" in prefs and "units = 1" in prefs and "display = 1" in prefs
+                      and "theme = 3" in prefs, "prefs saved beside the binary: place, units, display, theme")
                 step = "done"
 
         check(step == "done", f"got through every step (stopped at '{step}')")

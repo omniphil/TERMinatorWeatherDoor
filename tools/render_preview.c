@@ -11,6 +11,8 @@
 //     --hover I         hover chart hour I
 //     --day D           select day D
 //     --picker          open the location picker (with sample results)
+//     --theme N         0 smooth, 1 retro tech, 2 cyberpunk, 3 hacker
+//     --themes          the theme popup open
 //     --loading         before any data arrives
 //     --metric          metric units
 //     --t SECONDS       animation time (clouds, rain) to simulate first
@@ -75,7 +77,7 @@ static void feed(uint8_t type, uint16_t count, const void *body, uint32_t len)
 int main(int argc, char **argv)
 {
     int winW = 0, winH = 0;
-    int scale = 2, code = -1, hour = -1, hover = -1, day = -1, picker = 0, loading = 0, metric = 0;
+    int scale = 2, code = -1, hour = -1, hover = -1, day = -1, picker = 0, loading = 0, metric = 0, themes = 0;
     float t = 3;
     double lat = 45.5235, lon = -122.6762;
     const char *place = "Portland, Oregon", *out = "preview.ppm";
@@ -88,6 +90,8 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--hover")) hover = atoi(argv[++i]);
         else if (!strcmp(a, "--day")) day = atoi(argv[++i]);
         else if (!strcmp(a, "--picker")) picker = 1;
+        else if (!strcmp(a, "--theme")) g_theme = atoi(argv[++i]);
+        else if (!strcmp(a, "--themes")) themes = 1;
         else if (!strcmp(a, "--loading")) loading = 1;
         else if (!strcmp(a, "--metric")) metric = 1;
         else if (!strcmp(a, "--t")) t = (float)atof(argv[++i]);
@@ -115,7 +119,7 @@ int main(int argc, char **argv)
             f.cur.isDay = f.hourly.h[hi].isDay;
         }
         if (code >= 0) { f.cur.code = (uint8_t)code; f.cur.cloud = code <= 1 ? 10 : code == 2 ? 50 : 100; }
-        WxPrefs pr = { (uint8_t)(metric ? WX_UNITS_METRIC : WX_UNITS_IMPERIAL), 0, {0, 0} };
+        WxPrefs pr = { (uint8_t)(metric ? WX_UNITS_METRIC : WX_UNITS_IMPERIAL), 0, (uint8_t)g_theme, 0 };
         feed(WX_IN_PREFS, 1, &pr, sizeof pr);
         feed(WX_IN_CURRENT, 1, &f.cur, sizeof f.cur);
         feed(WX_IN_HOURLY, 1, &f.hourly, sizeof f.hourly);
@@ -131,6 +135,7 @@ int main(int argc, char **argv)
         if (i == frames) {
             if (day >= 0) select_day(day);
             if (hover >= 0) { g_hover = hover; g_hoverFromKey = 1; }
+            if (themes) g_themesOpen = 1;
             if (picker) {
                 open_picker();
                 strcpy(g_query, "Springfield"); g_qlen = (int)strlen(g_query);

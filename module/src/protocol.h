@@ -51,7 +51,10 @@ enum WxMsgOut {
     WX_OUT_PICK    = 3,  // uint8 index into the last WX_IN_PLACES list
     WX_OUT_UNITS   = 4,  // uint8 WX_UNITS_*
     WX_OUT_REFRESH = 5,  // no payload - fetch again
+    WX_OUT_THEME   = 6,  // uint8 theme (0 smooth, 1 retro tech, 2 cyberpunk, 3 hacker): remember it
 };
+
+#define WX_THEMES 4          // the module's fonts.h THEME_*
 
 enum { WX_STATUS_INFO = 0, WX_STATUS_BUSY = 1, WX_STATUS_ERROR = 2 };
 enum { WX_UNITS_IMPERIAL = 0, WX_UNITS_METRIC = 1 };
@@ -133,7 +136,8 @@ typedef struct {
 typedef struct {
     uint8_t units;          // WX_UNITS_*
     uint8_t firstRun;       // 1 = this caller has never picked a place: open the picker
-    uint8_t reserved[2];
+    uint8_t theme;          // the TRACE theme, 0..WX_THEMES-1
+    uint8_t reserved;
 } WxPrefs;
 
 // The whole forecast as the door holds it. Never sent in one piece (it is

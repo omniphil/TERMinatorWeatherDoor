@@ -95,7 +95,7 @@ static void draw_menu(int term, int recommended)
     title();
     door_write(CSI "0;37m  Choose how to view the weather:\r\n\r\n");
     if (term == TERM_TRACE)
-        door_write(CSI "1;37m  [1] " CSI "1;35mTRACE" CSI "1;37m graphics   " CSI "0;37m(animated sky, mouse)  "
+        door_write(CSI "1;37m  [1] " CSI "1;32mTRACE" CSI "1;37m graphics   " CSI "0;37m(animated sky, mouse)  "
                    CSI "1;32mDETECTED\r\n");
     else if (term == TERM_TRACE_OLD)
         door_write(CSI "1;30m  [1] TRACE graphics   (animated sky, mouse)  " CSI "1;33mUPDATE " CSI "1;35mTERM"
@@ -180,6 +180,10 @@ static void on_module_message(const unsigned char *data, size_t len)
     case WX_OUT_UNITS:
         if (h.bytes >= 1) { g_req.unitsValue = body[0]; g_req.units = true; }
         break;
+    case WX_OUT_THEME:
+        /* Only a prefs write: done right here. */
+        if (h.bytes >= 1 && body[0] < WX_THEMES) { g_prefs.theme = body[0]; wx_save_prefs(&g_prefs); }
+        break;
     default:
         break;
     }
@@ -208,7 +212,7 @@ static void send_status(int kind, const char *text)
 
 static void send_prefs(void)
 {
-    WxPrefs p = { (uint8_t)g_prefs.units, (uint8_t)(g_prefs.havePlace ? 0 : 1), { 0, 0 } };
+    WxPrefs p = { (uint8_t)g_prefs.units, (uint8_t)(g_prefs.havePlace ? 0 : 1), (uint8_t)g_prefs.theme, 0 };
     send_packet(WX_IN_PREFS, &p, sizeof p, 1);
 }
 

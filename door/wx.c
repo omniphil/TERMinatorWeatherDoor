@@ -135,6 +135,7 @@ static void prefs_kv(const char *k, const char *v, void *ctx)
     else if (!strcmp(k, "lon"))   p->lon = atof(v);
     else if (!strcmp(k, "units")) p->units = atoi(v) == WX_UNITS_METRIC ? WX_UNITS_METRIC : WX_UNITS_IMPERIAL;
     else if (!strcmp(k, "display")) p->display = atoi(v);
+    else if (!strcmp(k, "theme"))   { p->theme = atoi(v); if (p->theme < 0 || p->theme >= WX_THEMES) p->theme = 0; }
 }
 
 void wx_load_prefs(WxUserPrefs *p)
@@ -157,7 +158,7 @@ void wx_save_prefs(const WxUserPrefs *p)
     if (!f) return;
     if (p->havePlace)
         fprintf(f, "place = %s\nlat = %.4f\nlon = %.4f\n", p->place, p->lat, p->lon);
-    fprintf(f, "units = %d\ndisplay = %d\n", p->units, p->display);
+    fprintf(f, "units = %d\ndisplay = %d\ntheme = %d\n", p->units, p->display, p->theme);
     fclose(f);
     rename(tmp, path);      /* never leave a half-written file behind */
 }

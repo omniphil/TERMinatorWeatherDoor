@@ -27,23 +27,57 @@
 
 // ---------------------------------------------------------------- colours ---
 
-#define C_BG0      0x090E1C
-#define C_BG1      0x0E1530
-#define C_BAR      0x0D1428
-#define C_PANEL    0x131B35
-#define C_PANEL_HI 0x1A2446
-#define C_EDGE     0x243058
-#define C_EDGE_HI  0x3A4C84
-#define C_TEXT     0xEAF0FA
-#define C_TEXT2    0x9AA6C6
-#define C_TEXT3    0x5C688C
-#define C_ACCENT   0x4FD1FF
-#define C_MAGENTA  0xFF5FD2
-#define C_RAIN     0x4C9AFF
-#define C_SUN      0xFFC53D
-#define C_WARN     0xFFB547
-#define C_ERR      0xFF6B6B
-#define C_GOOD     0x6EDC8C
+// Each theme (T) brings its own fonts (fonts.h), colours and shapes.
+static int g_theme = THEME_SMOOTH;
+
+typedef struct {
+    uint32_t bg0, bg1, bar, panel, panelHi, edge, edgeHi, text, text2, text3;
+    uint32_t accent, magenta, rain, sun, warn, err, good;
+    uint32_t hot, tip, well, pop, hero, hero2;   // a hovered card, the tooltip, gauge wells, the picker, text on the sky
+    uint32_t selBg, selText;                     // the theme popup's chosen row
+} Palette;
+
+static const Palette PALETTES[THEME_COUNT] = {
+    // SMOOTH: the door's own navy.
+    { 0x090E1C, 0x0E1530, 0x0D1428, 0x131B35, 0x1A2446, 0x243058, 0x3A4C84, 0xEAF0FA, 0x9AA6C6, 0x5C688C,
+      0x4FD1FF, 0xFF5FD2, 0x4C9AFF, 0xFFC53D, 0xFFB547, 0xFF6B6B, 0x6EDC8C,
+      0x172042, 0x1F2A52, 0x0B1124, 0x131B38, 0xD5DCEA, 0xB8C2D8, 0x1C2A5A, 0xEAF0FA },
+    // RETRO: the VGA text-mode palette: black, DOS blue, bright cyan and yellow.
+    { 0x000000, 0x00000C, 0x0000AA, 0x00002A, 0x0000AA, 0x00007A, 0x5555FF, 0xFFFFFF, 0xAAAAAA, 0x6A6A8A,
+      0x55FFFF, 0xFF55FF, 0x5555FF, 0xFFFF55, 0xFFFF55, 0xFF5555, 0x55FF55,
+      0x000070, 0x0000AA, 0x000000, 0x00002A, 0xFFFFFF, 0xAAAAAA, 0x0000AA, 0xFFFFFF },
+    // CYBER: neon on purple-black.
+    { 0x07020F, 0x14062C, 0x0E0620, 0x120A24, 0x2A0E4A, 0x3E1C6A, 0x7A3CFF, 0xF4F0FF, 0xB3A3D9, 0x6E5C99,
+      0x00F0FF, 0xFF2BD6, 0x3D8BFF, 0xF9F002, 0xF9F002, 0xFF2A6D, 0x05FFA1,
+      0x1E0C3A, 0x2A0E4A, 0x07020F, 0x120A24, 0xEDE6FF, 0xC7B8EE, 0x3A1060, 0xF4F0FF },
+    // HACKER: a green phosphor terminal. The whole frame goes through phosphor()
+    // at the end, so these only need the right brightness.
+    { 0x000000, 0x020A04, 0x030C05, 0x030A05, 0x0A2412, 0x163F22, 0x2E6B40, 0x9ED8AC, 0x5FA374, 0x346B44,
+      0x6AD8B4, 0x8FD6A2, 0x5EDB6E, 0xCFE08A, 0xCFE08A, 0x5EDB6E, 0xA8D86A,
+      0x07180C, 0x0A2412, 0x000000, 0x030A05, 0x9ED8AC, 0x74B888, 0x5EDB6E, 0x021008 },
+};
+#define PAL (&PALETTES[g_theme])
+
+#define C_BG0      (PAL->bg0)
+#define C_BG1      (PAL->bg1)
+#define C_BAR      (PAL->bar)
+#define C_PANEL    (PAL->panel)
+#define C_PANEL_HI (PAL->panelHi)
+#define C_EDGE     (PAL->edge)
+#define C_EDGE_HI  (PAL->edgeHi)
+#define C_TEXT     (PAL->text)
+#define C_TEXT2    (PAL->text2)
+#define C_TEXT3    (PAL->text3)
+#define C_ACCENT   (PAL->accent)
+#define C_MAGENTA  (PAL->magenta)
+#define C_RAIN     (PAL->rain)
+#define C_SUN      (PAL->sun)
+#define C_WARN     (PAL->warn)
+#define C_ERR      (PAL->err)
+#define C_GOOD     (PAL->good)
+
+static const char *const THEME_NAME[THEME_COUNT] = { "Smooth", "Retro Tech", "Cyberpunk", "Hacker" };
+#define SQUARE_THEME (g_theme == THEME_RETRO || g_theme == THEME_HACKER)
 
 // ------------------------------------------------------------------ frame ---
 
@@ -270,7 +304,7 @@ static void poly_l(const float *pts, int n, uint32_t rgb, int a)
 
 // ------------------------------------------------------------------- text ---
 
-static const FontFace *face(int f) { return &g_fonts[g_S - 1][f]; }
+static const FontFace *face(int f) { return &g_fonts[g_theme][g_S - 1][f]; }
 
 static const FontGlyph *glyph(const FontFace *F, unsigned char ch)
 {
@@ -304,7 +338,8 @@ static float text_sp(int f, float x, float y, const char *s, uint32_t rgb, int a
         int gx = pen + g->x, gy = top + g->y;
         for (int j = 0; j < g->h; j++)
             for (int i = 0; i < g->w; i++) {
-                int c = src[j * g->w + i];
+                // 4-bit coverage, two pixels a byte, high nibble first.
+                int k = j * g->w + i, c = (k & 1 ? src[k >> 1] & 15 : src[k >> 1] >> 4) * 17;
                 if (c) blendp(gx + i, gy + j, rgb, c * a / 255);
             }
         pen += g->adv + spd;
@@ -358,6 +393,113 @@ static void fit(int f, const char *s, float maxw, char *out, size_t size)
         char tmp[128];
         snprintf(tmp, sizeof tmp, "%.100s...", out);
         if (text_w(f, tmp, 0) <= maxw) { memcpy(out, tmp, strlen(tmp) + 1 < size ? strlen(tmp) + 1 : size); out[size - 1] = 0; return; }
+    }
+}
+
+// ---------------------------------------------------------------- shapes ---
+//
+// Boxes take the theme's shape: Smooth rounds the corners, Retro Tech and
+// Hacker square them, Cyberpunk cuts two corners off and outlines in neon.
+
+static void chamfer_fill(float x, float y, float w, float h, float c, uint32_t col, int a)
+{
+    int X0 = D(x), Y0 = D(y), X1 = D(x + w), Y1 = D(y + h), C = D(c);
+    if (C > (Y1 - Y0) / 2) C = (Y1 - Y0) / 2;
+    for (int yy = Y0; yy < Y1; yy++) {
+        int l = C - (yy - Y0), r = C - (Y1 - 1 - yy);     // the top-left and bottom-right cuts
+        if (l < 0) l = 0;
+        if (r < 0) r = 0;
+        fill_d(X0 + l, yy, X1 - r, yy + 1, col, a);
+        if (l > 0) blendp(X0 + l - 1, yy, col, a / 2);
+        if (r > 0) blendp(X1 - r, yy, col, a / 2);
+    }
+}
+
+static void chamfer_stroke(float x, float y, float w, float h, float c, float wd, uint32_t col, int a)
+{
+    float i = wd / 2;
+    if (c > h / 2) c = h / 2;
+    float P[12] = { x + c, y + i, x + w - i, y + i, x + w - i, y + h - c, x + w - c, y + h - i, x + i, y + h - i, x + i, y + c };
+    for (int k = 0; k < 6; k++) {
+        int n = (k + 1) % 6;
+        line_l(P[k * 2], P[k * 2 + 1], P[n * 2], P[n * 2 + 1], wd, col, a);
+    }
+}
+
+static void box_fill(float x, float y, float w, float h, float r, uint32_t col, int a)
+{
+    if (SQUARE_THEME) fill_l(x, y, w, h, col, a);
+    else if (g_theme == THEME_CYBER) chamfer_fill(x, y, w, h, fminf(r * 1.2f, 10), col, a);
+    else rrect_l(x, y, w, h, r, col, a);
+}
+
+static void box_stroke(float x, float y, float w, float h, float r, float wd, uint32_t col, int a)
+{
+    if (SQUARE_THEME) {
+        fill_l(x, y, w, wd, col, a);
+        fill_l(x, y + h - wd, w, wd, col, a);
+        fill_l(x, y + wd, wd, h - 2 * wd, col, a);
+        fill_l(x + w - wd, y + wd, wd, h - 2 * wd, col, a);
+    } else if (g_theme == THEME_CYBER) {
+        chamfer_stroke(x, y, w, h, fminf(r * 1.2f, 10), wd, col, a);
+    } else {
+        rrect_stroke_l(x, y, w, h, r, wd, col, a);
+    }
+}
+
+// An outline that glows in Cyberpunk; a plain one otherwise.
+static void box_glow(float x, float y, float w, float h, float r, float wd, uint32_t col, int a)
+{
+    if (g_theme == THEME_CYBER) {
+        box_stroke(x - 2, y - 2, w + 4, h + 4, r + 1, 3, col, a / 6);
+        box_stroke(x - 1, y - 1, w + 2, h + 2, r + 0.5f, 2, col, a / 3);
+    }
+    box_stroke(x, y, w, h, r, wd, col, a);
+}
+
+// A panel's frame: Retro Tech's DOS double line sits just outside it; Cyberpunk's glows.
+static void frame(float x, float y, float w, float h, float r, uint32_t edge)
+{
+    if (g_theme == THEME_RETRO) {
+        box_stroke(x, y, w, h, 0, 1, C_TEXT2, 255);
+        box_stroke(x + 2, y + 2, w - 4, h - 4, 0, 1, C_TEXT2, 255);
+    } else if (g_theme == THEME_CYBER) {
+        box_glow(x, y, w, h, r, 1, C_MAGENTA, 140);
+    } else {
+        box_stroke(x, y, w, h, r, 1, edge, 255);
+    }
+}
+
+// Retro Tech's sky: 256 colours, ordered-dithered like a DOS game, in
+// logical-pixel blocks so it stays chunky at 2x.
+static void dither_rect(float x, float y, float w, float h)
+{
+    static const uint8_t B[4][4] = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } };
+    int X0 = D(x), Y0 = D(y), X1 = D(x + w), Y1 = D(y + h);
+    for (int Y = Y0; Y < Y1; Y++) {
+        uint32_t *row = g_frame + Y * g_W;
+        for (int X = X0; X < X1; X++) {
+            int t = B[(Y / g_S) & 3][(X / g_S) & 3] * 51 / 16;     // 0..48: one step of 6 levels
+            uint32_t p = row[X], o = 0xFF000000u;
+            for (int sh = 16; sh >= 0; sh -= 8) {
+                int v = ((int)(p >> sh & 255) + t - 24) / 51;
+                if (v < 0) v = 0;
+                if (v > 5) v = 5;
+                o |= (uint32_t)(v * 51) << sh;
+            }
+            row[X] = o;
+        }
+    }
+}
+
+// Hacker's whole frame, as a green phosphor screen shows it: brightness only.
+static void phosphor(void)
+{
+    for (int i = 0; i < g_W * g_H; i++) {
+        uint32_t p = g_frame[i];
+        int l = (int)((p >> 16 & 255) * 77 + (p >> 8 & 255) * 150 + (p & 255) * 29) >> 8;
+        g_frame[i] = 0xFF000000u | (uint32_t)(l * 75 / 255) << 16 | (uint32_t)(20 + l * 215 / 255) << 8 |
+                     (uint32_t)(l * 100 / 255);
     }
 }
 
@@ -806,6 +948,12 @@ static void close_icon(float cx, float cy, float s, uint32_t col)
 
 static void spinner(float cx, float cy, float r, uint32_t col)
 {
+    if (SQUARE_THEME) {
+        // A text-mode spinner.
+        static const char *const F[4] = { "|", "/", "-", "\\" };
+        text_c(F_BOLD, cx, cy - 7, F[(trace_time_ms() / 120) % 4], col);
+        return;
+    }
     float t = trace_time_ms() / 1000.0f;
     for (int i = 0; i < 8; i++) {
         float ang = i * PI_F / 4 + t * 5;
@@ -819,8 +967,8 @@ static float keycap(float x, float y, const char *k)
 {
     float w = text_w(F_SMALL, k, 0) + 8;
     if (w < 14) w = 14;
-    rrect_l(x, y, w, 13, 3, C_PANEL_HI, 255);
-    rrect_stroke_l(x, y, w, 13, 3, 1, C_EDGE_HI, 255);
+    box_fill(x, y, w, 13, 3, C_PANEL_HI, 255);
+    box_stroke(x, y, w, 13, 3, 1, C_EDGE_HI, 255);
     text_c(F_SMALL, x + w / 2, y + 1, k, C_TEXT2);
     return x + w;
 }
@@ -846,6 +994,7 @@ static const Rect R_DAYS    = { 8, 368, 624, 88 };
 static const Rect R_CLOSE   = { 608, 4, 24, 20 };
 static const Rect R_REFRESH = { 580, 4, 24, 20 };
 static const Rect R_UNITS   = { 516, 5, 58, 18 };
+static const Rect R_THEME   = { 452, 5, 58, 18 };
 static const Rect R_PICKER  = { 130, 72, 380, 330 };
 #define PICK_FIELD_Y (R_PICKER.y + 62)
 #define PICK_ROWS_Y  (R_PICKER.y + 108)
@@ -875,6 +1024,7 @@ static char  g_lastSearch[WX_SEARCH_LEN + 1];
 static int   g_pickSel = 0;
 static int   g_searching = 0;
 static int   g_firstRun = 0;
+static int   g_themesOpen = 0;                  // the theme popup
 static int32_t g_refreshSpinUntil = 0;
 static int32_t g_lastFrameMs = 0;
 
@@ -1440,13 +1590,25 @@ static void draw_sky(float dt)
 
 static void panel(const Rect *r)
 {
-    rrect_l(r->x, r->y, r->w, r->h, 8, C_PANEL, 255);
-    rrect_stroke_l(r->x, r->y, r->w, r->h, 8, 1, C_EDGE, 255);
+    box_fill(r->x, r->y, r->w, r->h, 8, C_PANEL, 255);
+    frame(r->x, r->y, r->w, r->h, 8, C_EDGE);
 }
 
-// Round the sky's corners by painting the background back over them.
+// Shape the sky's corners by painting the background back over them: round,
+// or cut in Cyberpunk; the square themes just frame it.
 static void round_corners(const Rect *r, float rad)
 {
+    if (SQUARE_THEME) { frame(r->x, r->y, r->w, r->h, 0, C_EDGE); return; }
+    if (g_theme == THEME_CYBER) {
+        int X0 = D(r->x), Y0 = D(r->y), X1 = D(r->x + r->w), Y1 = D(r->y + r->h), C = D(10);
+        for (int k = 0; k < C; k++) {
+            uint32_t bgT = mixf(C_BG0, C_BG1, (float)(Y0 + k) / g_H), bgB = mixf(C_BG0, C_BG1, (float)(Y1 - 1 - k) / g_H);
+            fill_d(X0, Y0 + k, X0 + C - k, Y0 + k + 1, bgT, 255);
+            fill_d(X1 - C + k, Y1 - 1 - k, X1, Y1 - k, bgB, 255);
+        }
+        frame(r->x, r->y, r->w, r->h, rad, C_EDGE);
+        return;
+    }
     int X0 = D(r->x), Y0 = D(r->y), X1 = D(r->x + r->w), Y1 = D(r->y + r->h);
     float R = rad * g_S;
     int band = (int)ceilf(R);
@@ -1469,6 +1631,8 @@ static void draw_hero(float dt)
     clip_l(R->x, R->y, R->w, R->h);
     draw_sky(dt);
     clip_all();
+    if (g_theme == THEME_RETRO) dither_rect(R->x, R->y, R->w, R->h);
+    if (g_theme == THEME_HACKER) fill_l(R->x, R->y, R->w, R->h, 0x000000, 120);     // a dim screen, so the text stands out
     round_corners(R, 10);
 
     float x = R->x + 18;
@@ -1481,6 +1645,13 @@ static void draw_hero(float dt)
     // The big temperature, the degree sign set smaller like a superscript.
     snprintf(buf, sizeof buf, "%d", temp_i(g_cur.temp10));
     float y = R->y + 4;
+    if (g_theme == THEME_CYBER) {
+        // Split into pink and cyan like a neon sign, and now and then a glitch.
+        int32_t t = trace_time_ms();
+        float gx = t % 5300 < 140 ? (t % 3 - 1) * 4.0f : 0;
+        text_sp(F_HUGE, x - 4 - 2.5f + gx, y, buf, C_MAGENTA, 150, 0);
+        text_sp(F_HUGE, x - 4 + 2.5f - gx, y, buf, C_ACCENT, 150, 0);
+    }
     float ex = text_shadow(F_HUGE, x - 4, y, buf, C_TEXT);
     ring_l(ex + 7, y + 26, 5.5f, 2.2f, 0x000000, 70);
     ring_l(ex + 6, y + 25, 5.5f, 2.2f, C_TEXT, 255);
@@ -1495,18 +1666,18 @@ static void draw_hero(float dt)
     fmt_temp(hi, sizeof hi, g_dy.d[di].hi10);
     fmt_temp(lo, sizeof lo, g_dy.d[di].lo10);
     snprintf(buf, sizeof buf, "Feels like %s", feels);
-    float lx = text_shadow(F_BODY, x, R->y + 126, buf, 0xD5DCEA);
-    circle_l(lx + 7, R->y + 133, 1.5f, 0xB8C2D8, 255);
-    lx = text_shadow(F_BODY, lx + 14, R->y + 126, "H ", 0xB8C2D8);
+    float lx = text_shadow(F_BODY, x, R->y + 126, buf, PAL->hero);
+    circle_l(lx + 7, R->y + 133, 1.5f, PAL->hero2, 255);
+    lx = text_shadow(F_BODY, lx + 14, R->y + 126, "H ", PAL->hero2);
     lx = text_shadow(F_BOLD, lx, R->y + 126, hi, C_TEXT);
-    lx = text_shadow(F_BODY, lx + 8, R->y + 126, "L ", 0xB8C2D8);
-    text_shadow(F_BOLD, lx, R->y + 126, lo, 0xD5DCEA);
+    lx = text_shadow(F_BODY, lx + 8, R->y + 126, "L ", PAL->hero2);
+    text_shadow(F_BOLD, lx, R->y + 126, lo, PAL->hero);
 }
 
 static void tile(float x, float y, float w, float h, const char *name)
 {
-    rrect_l(x, y, w, h, 7, C_PANEL, 255);
-    rrect_stroke_l(x, y, w, h, 7, 1, C_EDGE, 255);
+    box_fill(x, y, w, h, 7, C_PANEL, 255);
+    frame(x, y, w, h, 7, C_EDGE);
     label(x + 9, y + 7, name, C_TEXT3);
 }
 
@@ -1549,9 +1720,9 @@ static void draw_details(void)
         snprintf(buf, sizeof buf, "%d%%", g_cur.humidity);
         text(F_HEAD, x1 + 9, y[0] + 20, buf, C_TEXT);
         float gx = x1 + tw - 14, gy = y[0] + 9, gh = th - 18;
-        rrect_l(gx, gy, 5, gh, 2.5f, C_PANEL_HI, 255);
+        box_fill(gx, gy, 5, gh, 2.5f, C_PANEL_HI, 255);
         float fh = gh * g_cur.humidity / 100.0f;
-        rrect_l(gx, gy + gh - fh, 5, fh, 2.5f, C_RAIN, 255);
+        box_fill(gx, gy + gh - fh, 5, fh, 2.5f, C_RAIN, 255);
     }
 
     tile(x0, y[1], tw, th, "PRESSURE");
@@ -1664,9 +1835,9 @@ static void draw_tooltip(float px, float py, int hi)
     float x = px + 12, y = py - h2 - 10;
     if (x + w > R_CHART.x + R_CHART.w - 4) x = px - w - 12;
     if (y < R_CHART.y + 4) y = R_CHART.y + 4;
-    rrect_l(x + 2, y + 3, w, h2, 7, 0x000000, 90);
-    rrect_l(x, y, w, h2, 7, 0x1F2A52, 250);
-    rrect_stroke_l(x, y, w, h2, 7, 1, C_EDGE_HI, 255);
+    box_fill(x + 2, y + 3, w, h2, 7, 0x000000, 90);
+    box_fill(x, y, w, h2, 7, PAL->tip, 250);
+    box_glow(x, y, w, h2, 7, 1, g_theme == THEME_CYBER ? C_ACCENT : C_EDGE_HI, 255);
     text(F_BOLD, x + 11, y + 7, l1, C_TEXT);
     text_r(F_HEAD, x + w - 11, y + 5, tp, temp_color(h->temp10 / 10.0f));
     text(F_BODY, x + 11, y + 23, l2, C_TEXT2);
@@ -1823,8 +1994,10 @@ static void draw_days(void)
         Rect card = { x, y, CARD_W, R->h };
         int sel = have_data() && i == g_selDay;
         int hot = !g_picker && g_mouseOver && inside(&card, g_mx, g_my);
-        rrect_l(x, y, CARD_W, R->h, 8, sel ? C_PANEL_HI : hot ? 0x172042 : C_PANEL, 255);
-        rrect_stroke_l(x, y, CARD_W, R->h, 8, sel ? 1.5f : 1, sel ? C_ACCENT : hot ? C_EDGE_HI : C_EDGE, 255);
+        box_fill(x, y, CARD_W, R->h, 8, sel ? C_PANEL_HI : hot ? PAL->hot : C_PANEL, 255);
+        if (sel) box_glow(x, y, CARD_W, R->h, 8, 1.5f, C_ACCENT, 255);
+        else if (g_theme == THEME_RETRO && !hot) frame(x, y, CARD_W, R->h, 8, C_EDGE);
+        else box_stroke(x, y, CARD_W, R->h, 8, 1, hot ? C_EDGE_HI : C_EDGE, 255);
         if (!have_data()) {
             rrect_l(cx - 18, y + 10, 36, 8, 4, C_PANEL_HI, 255);
             circle_l(cx, y + 36, 11, C_PANEL_HI, 255);
@@ -1846,7 +2019,7 @@ static void draw_days(void)
 
         // This day's range against the whole week's.
         float bx = x + 12, bw = CARD_W - 24, by = y + 68;
-        rrect_l(bx, by, bw, 4, 2, 0x0B1124, 255);
+        box_fill(bx, by, bw, 4, 2, PAL->well, 255);
         if (whi > wlo) {
             float f0 = (d->lo10 / 10.0f - wlo) / (whi - wlo), f1 = (d->hi10 / 10.0f - wlo) / (whi - wlo);
             float sx0 = bx + f0 * bw, sx1 = bx + f1 * bw;
@@ -1875,7 +2048,7 @@ static void draw_days(void)
 static void draw_bar(void)
 {
     fill_l(0, 0, LW, BAR_H, C_BAR, 255);
-    fill_l(0, BAR_H, LW, 1, C_EDGE, 255);
+    fill_l(0, BAR_H, LW, 1, g_theme == THEME_CYBER ? C_MAGENTA : C_EDGE, 255);
 
     // Brand, in TERMinator's colours.
     float x = 12;
@@ -1884,17 +2057,18 @@ static void draw_bar(void)
     x = text(F_HEAD, x, 5, "TERM", C_MAGENTA);
     x = text(F_HEAD, x, 5, "inator", C_ACCENT);
     x = text(F_HEAD, x + 6, 5, "Weather", C_TEXT);
+    if (g_theme == THEME_HACKER && (trace_time_ms() / 530) % 2 == 0) fill_l(x + 3, 7, 7, 14, C_TEXT, 255);   // a cursor
 
     // The place: a button that opens the picker.
     char name[64];
     const char *src = g_haveCur && g_cur.place[0] ? g_cur.place : "Choose a location";
-    float maxw = R_UNITS.x - 110 - (x + 20);
+    float maxw = R_THEME.x - 100 - (x + 20);
     fit(F_BODY, src, maxw, name, sizeof name);
     float bw = text_w(F_BODY, name, 0) + 42;
     g_placeBtn = (Rect){ x + 16, 4, bw, 20 };
     int hot = !g_picker && g_mouseOver && inside(&g_placeBtn, g_mx, g_my);
-    rrect_l(g_placeBtn.x, g_placeBtn.y, bw, 20, 10, hot ? C_PANEL_HI : C_PANEL, 255);
-    rrect_stroke_l(g_placeBtn.x, g_placeBtn.y, bw, 20, 10, 1, hot ? C_ACCENT : C_EDGE, 255);
+    box_fill(g_placeBtn.x, g_placeBtn.y, bw, 20, 10, hot ? C_PANEL_HI : C_PANEL, 255);
+    box_glow(g_placeBtn.x, g_placeBtn.y, bw, 20, 10, 1, hot ? C_ACCENT : C_EDGE, hot ? 255 : 200);
     pin_icon(g_placeBtn.x + 13, 14, 12, C_ACCENT);
     text(F_BODY, g_placeBtn.x + 22, 7, name, C_TEXT);
     // the little "change" chevron
@@ -1908,34 +2082,41 @@ static void draw_bar(void)
         fmt_clock(tm, sizeof tm, now_utc(), 1);
         LocalTime lt = local_time(now_utc());
         snprintf(clock, sizeof clock, "%s %s", WDAY3[lt.wday], tm);
-        text_r(F_BODY, R_UNITS.x - 12, 7, clock, C_TEXT2);
+        text_r(F_BODY, R_THEME.x - 10, 7, clock, C_TEXT2);
     }
+
+    // The theme button: opens the theme popup.
+    const Rect *th = &R_THEME;
+    int hotT = !g_picker && (g_themesOpen || (g_mouseOver && inside(th, g_mx, g_my)));
+    box_fill(th->x, th->y, th->w, th->h, 9, hotT ? C_ACCENT : C_PANEL, 255);
+    box_glow(th->x, th->y, th->w, th->h, 9, 1, hotT ? C_ACCENT : C_EDGE, 255);
+    text_c(F_BOLD, th->x + th->w / 2, th->y + 2, "Theme", hotT ? C_BAR : C_TEXT2);
 
     // Units: a two-way switch.
     const Rect *u = &R_UNITS;
-    rrect_l(u->x, u->y, u->w, u->h, 9, C_PANEL, 255);
-    rrect_stroke_l(u->x, u->y, u->w, u->h, 9, 1, C_EDGE, 255);
+    box_fill(u->x, u->y, u->w, u->h, 9, C_PANEL, 255);
+    box_stroke(u->x, u->y, u->w, u->h, 9, 1, C_EDGE, 255);
     int metric = g_units == WX_UNITS_METRIC;
     float half = u->w / 2;
-    rrect_l(u->x + 2 + (metric ? half - 2 : 0), u->y + 2, half, u->h - 4, 7, C_ACCENT, 255);
+    box_fill(u->x + 2 + (metric ? half - 2 : 0), u->y + 2, half, u->h - 4, 7, C_ACCENT, 255);
     int hotU = !g_picker && g_mouseOver && inside(u, g_mx, g_my);
     text_c(F_BOLD, u->x + half / 2 + 1, u->y + 2, DEG "F", !metric ? C_BAR : hotU ? C_TEXT : C_TEXT2);
     text_c(F_BOLD, u->x + half + half / 2 - 1, u->y + 2, DEG "C", metric ? C_BAR : hotU ? C_TEXT : C_TEXT2);
 
     int hotR = !g_picker && g_mouseOver && inside(&R_REFRESH, g_mx, g_my);
-    if (hotR) rrect_l(R_REFRESH.x, R_REFRESH.y, R_REFRESH.w, R_REFRESH.h, 6, C_PANEL_HI, 255);
+    if (hotR) box_fill(R_REFRESH.x, R_REFRESH.y, R_REFRESH.w, R_REFRESH.h, 6, C_PANEL_HI, 255);
     int32_t now = trace_time_ms();
     float spin = now < g_refreshSpinUntil || g_statusKind == WX_STATUS_BUSY ? now / 120.0f : 0;
     refresh_icon(R_REFRESH.x + 12, R_REFRESH.y + 10, 20, hotR ? C_TEXT : C_TEXT2, spin);
 
     int hotC = !g_picker && g_mouseOver && inside(&R_CLOSE, g_mx, g_my);
-    if (hotC) rrect_l(R_CLOSE.x, R_CLOSE.y, R_CLOSE.w, R_CLOSE.h, 6, 0x5A2030, 255);
+    if (hotC) box_fill(R_CLOSE.x, R_CLOSE.y, R_CLOSE.w, R_CLOSE.h, 6, mix(C_BAR, C_ERR, 110), 255);
     close_icon(R_CLOSE.x + 12, R_CLOSE.y + 10, 20, hotC ? 0xFFFFFF : C_TEXT2);
 }
 
 static void draw_footer(void)
 {
-    float y = FOOT_Y;
+    float y = FOOT_Y, hintEnd = 0;
     int32_t now = trace_time_ms();
     int showStatus = g_status[0] &&
         (g_statusKind == WX_STATUS_BUSY || now - g_statusAt < (g_statusKind == WX_STATUS_ERROR ? 12000 : 5000));
@@ -1952,8 +2133,9 @@ static void draw_footer(void)
         else { x = hint(x, y, "<>", "hours"); x = hint(x, y, "Up/Dn", "days"); }
         x = hint(x, y, "L", "location");
         x = hint(x, y, "U", "units");
+        x = hint(x, y, "T", "theme");
         if (!g_haveMouse) x = hint(x, y, "R", "refresh");
-        hint(x, y, "Esc", "quit");
+        hintEnd = hint(x, y, "Esc", "quit");
     }
     // Open-Meteo's licence (CC BY 4.0) asks for the credit.
     const char *credit = "Data: Open-Meteo.com";
@@ -1963,8 +2145,11 @@ static void draw_footer(void)
         char tm[16], upd[32];
         fmt_clock(tm, sizeof tm, g_cur.fetchedAt, 1);
         snprintf(upd, sizeof upd, "Updated %s", tm);
-        circle_l(rx - 8, y + 8, 1.3f, C_TEXT3, 255);
-        text_r(F_SMALL, rx - 15, y + 2, upd, C_TEXT3);
+        // Only where the key hints leave room (wider faces, or no mouse, fill the line).
+        if (rx - 15 - text_w(F_SMALL, upd, 0) > hintEnd) {
+            circle_l(rx - 8, y + 8, 1.3f, C_TEXT3, 255);
+            text_r(F_SMALL, rx - 15, y + 2, upd, C_TEXT3);
+        }
     }
 }
 
@@ -1984,9 +2169,10 @@ static void draw_picker(void)
     // Dim everything behind.
     fill_d(0, 0, g_W, g_H, 0x02040A, 175);
     const Rect *P = &R_PICKER;
-    rrect_l(P->x + 3, P->y + 5, P->w, P->h, 12, 0x000000, 110);
-    rrect_l(P->x, P->y, P->w, P->h, 12, 0x131B38, 255);
-    rrect_stroke_l(P->x, P->y, P->w, P->h, 12, 1, C_EDGE_HI, 255);
+    box_fill(P->x + 3, P->y + 5, P->w, P->h, 12, 0x000000, 110);
+    box_fill(P->x, P->y, P->w, P->h, 12, PAL->pop, 255);
+    if (g_theme == THEME_RETRO) frame(P->x + 3, P->y + 3, P->w - 6, P->h - 6, 0, C_EDGE);
+    else box_glow(P->x, P->y, P->w, P->h, 12, 1, g_theme == THEME_CYBER ? C_ACCENT : C_EDGE_HI, 255);
 
     pin_icon(P->x + 26, P->y + 26, 18, C_ACCENT);
     text(F_HEAD, P->x + 42, P->y + 16, "Choose a location", C_TEXT);
@@ -1994,8 +2180,8 @@ static void draw_picker(void)
 
     // The field.
     float fx = P->x + 16, fy = PICK_FIELD_Y, fw = P->w - 32, fh = 34;
-    rrect_l(fx, fy, fw, fh, 8, 0x0B1124, 255);
-    rrect_stroke_l(fx, fy, fw, fh, 8, 1.5f, C_ACCENT, 255);
+    box_fill(fx, fy, fw, fh, 8, PAL->well, 255);
+    box_stroke(fx, fy, fw, fh, 8, 1.5f, C_ACCENT, 255);
     // magnifier
     ring_l(fx + 17, fy + 15, 5.5f, 1.8f, C_TEXT2, 255);
     line_l(fx + 21, fy + 19, fx + 25, fy + 23, 2, C_TEXT2, 255);
@@ -2019,8 +2205,8 @@ static void draw_picker(void)
             float y = ry + i * PICK_ROW_H;
             int sel = i == g_pickSel;
             if (sel) {
-                rrect_l(P->x + 16, y + 1, P->w - 32, PICK_ROW_H - 2, 7, C_PANEL_HI, 255);
-                rrect_stroke_l(P->x + 16, y + 1, P->w - 32, PICK_ROW_H - 2, 7, 1, C_EDGE_HI, 255);
+                box_fill(P->x + 16, y + 1, P->w - 32, PICK_ROW_H - 2, 7, C_PANEL_HI, 255);
+                box_stroke(P->x + 16, y + 1, P->w - 32, PICK_ROW_H - 2, 7, 1, C_EDGE_HI, 255);
             }
             pin_icon(P->x + 32, y + 13, 11, sel ? C_ACCENT : C_TEXT3);
             char nm[64];
@@ -2039,6 +2225,71 @@ static void draw_picker(void)
     hx = hint(hx, hy, "Enter", g_placeCount > 0 && !strcmp(g_query, g_lastSearch) ? "choose" : "search");
     if (g_placeCount > 0) hx = hint(hx, hy, "Up/Dn", "move");
     hint(hx, hy, "Esc", g_firstRun && !g_haveCur ? "skip" : "cancel");
+}
+
+// ------------------------------------------------------------ theme popup ---
+//
+// Centred over a dimmed screen, as in the TraceMsg and News doors: each theme
+// shows behind it as it is chosen.
+
+#define POP_ROW_H 23
+static Rect pop_rect(void)
+{
+    float w = 300, h = 48 + THEME_COUNT * POP_ROW_H + 30;
+    return (Rect){ (LW - w) / 2, (LH - h) / 2, w, h };
+}
+
+static void set_theme(int t)
+{
+    if (t < 0 || t >= THEME_COUNT || t == g_theme) return;
+    g_theme = t;
+    uint8_t b = (uint8_t)t;
+    send_msg(WX_OUT_THEME, &b, 1);
+}
+
+static int theme_row_at(float mx, float my)
+{
+    Rect m = pop_rect();
+    if (mx < m.x + 10 || mx >= m.x + m.w - 10 || my < m.y + 48) return -1;
+    int r = (int)((my - m.y - 48) / POP_ROW_H);
+    return r < THEME_COUNT ? r : -1;
+}
+
+// A theme as bands of its own colours, so the choice is made by eye too.
+static void theme_swatch(float x, float y, float w, float h, const Palette *p)
+{
+    rrect_l(x, y, w, h, 3, p->panel, 255);
+    rrect_stroke_l(x, y, w, h, 3, 1, p->edge, 255);
+    fill_l(x + 3, y + 3, w - 6, 6, p->panelHi, 255);
+    fill_l(x + 6, y + 5, w * 0.45f, 2, p->text, 255);
+    const uint32_t acc[4] = { p->err, p->good, p->sun, p->accent };
+    float bw = (w - 6 - 3 * 2) / 4;
+    for (int i = 0; i < 4; i++) fill_l(x + 3 + i * (bw + 2), y + 12, bw, 4, acc[i], 255);
+}
+
+static void draw_themes(void)
+{
+    Rect m = pop_rect();
+    fill_d(0, 0, g_W, g_H, 0x000000, 140);
+    box_fill(m.x, m.y, m.w, m.h, 8, PAL->pop, 255);
+    if (g_theme == THEME_RETRO) frame(m.x + 3, m.y + 3, m.w - 6, m.h - 6, 0, C_EDGE);
+    else box_glow(m.x, m.y, m.w, m.h, 8, 1, C_ACCENT, 200);
+    text(F_BOLD, m.x + 16, m.y + 12, "Theme", C_TEXT);
+    label(m.x + 16, m.y + 30, "UP AND DOWN TO CHOOSE, OR CLICK ONE", C_TEXT3);
+
+    int hotRow = g_mouseOver ? theme_row_at(g_mx, g_my) : -1;
+    int keep = g_theme;
+    uint32_t selBg = PAL->selBg, hotBg = PAL->hot, on = PAL->selText, off = C_TEXT;   // the current theme's, for every row
+    for (int i = 0; i < THEME_COUNT; i++) {
+        float ry = m.y + 48 + i * POP_ROW_H;
+        if (i == keep) fill_l(m.x + 10, ry, m.w - 20, POP_ROW_H - 2, selBg, 255);
+        else if (i == hotRow) fill_l(m.x + 10, ry, m.w - 20, POP_ROW_H - 2, hotBg, 255);
+        g_theme = i;                              // each name in its own face
+        text(F_BOLD, m.x + 20, ry + 4, THEME_NAME[i], i == keep ? on : off);
+        g_theme = keep;
+        theme_swatch(m.x + m.w - 96, ry + 1, 80, 19, &PALETTES[i]);
+    }
+    label_c(m.x + m.w / 2, m.y + m.h - 18, "ENTER OR ESC TO SAVE", C_TEXT3);
 }
 
 // ------------------------------------------------------------- TRACE API ---
@@ -2151,6 +2402,7 @@ void trace_on_data(const char *data, int32_t length)
             WxPrefs pr;
             memcpy(&pr, p, sizeof pr);
             g_units = pr.units == WX_UNITS_METRIC ? WX_UNITS_METRIC : WX_UNITS_IMPERIAL;
+            if (pr.theme < THEME_COUNT) g_theme = pr.theme;
             if (pr.firstRun && !g_picker) { g_firstRun = 1; open_picker(); }
         }
         break;
@@ -2237,6 +2489,14 @@ void trace_on_input(int32_t type, int32_t flags, int32_t a, int32_t b, int32_t c
         if (!(flags & 1)) break;
         int shift = (flags & 4) != 0;
         if (g_picker) { picker_key(a, shift); break; }
+        if (g_themesOpen) {
+            // The popup has the keys while it's open; each theme shows as it's chosen.
+            char ch = scancode_char(a, 0);
+            if (a == SC_UP) set_theme((g_theme + THEME_COUNT - 1) % THEME_COUNT);
+            else if (a == SC_DOWN) set_theme((g_theme + 1) % THEME_COUNT);
+            else if (a == SC_ENTER || a == SC_ESC || a == SC_SPACE || a == SC_BACK || ch == 't') g_themesOpen = 0;
+            break;
+        }
         switch (a) {
         case SC_ESC: g_quitting = 1; break;
         case SC_LEFT:  move_hover(-1); break;
@@ -2255,6 +2515,7 @@ void trace_on_input(int32_t type, int32_t flags, int32_t a, int32_t b, int32_t c
             else if (ch == 'f') do_units(WX_UNITS_IMPERIAL);
             else if (ch == 'c') do_units(WX_UNITS_METRIC);
             else if (ch == 'r') do_refresh();
+            else if (ch == 't') g_themesOpen = 1;
             else if (ch == 'q') g_quitting = 1;
             break;
         }
@@ -2270,6 +2531,8 @@ void trace_on_input(int32_t type, int32_t flags, int32_t a, int32_t b, int32_t c
         if (g_picker) {
             int r = picker_row_at(g_mx, g_my);
             if (r >= 0) g_pickSel = r;
+        } else if (g_themesOpen) {
+            g_hover = -1;
         } else if (g_mouseOver && inside(&R_CHART, g_mx, g_my) && have_data() && g_my > R_CHART.y + 20) {
             g_hover = chart_hour_at(g_mx);
             g_hoverFromKey = 0;
@@ -2282,6 +2545,7 @@ void trace_on_input(int32_t type, int32_t flags, int32_t a, int32_t b, int32_t c
         int pressed = flags & 1, btn = a;
         if (btn == 4 || btn == 5) {
             int dir = btn == 4 ? -1 : 1;
+            if (g_themesOpen) break;
             if (g_picker) {
                 if (g_placeCount > 0) { g_pickSel += dir; if (g_pickSel < 0) g_pickSel = 0; if (g_pickSel >= g_placeCount) g_pickSel = g_placeCount - 1; }
             } else if (inside(&R_DAYS, g_mx, g_my)) {
@@ -2299,6 +2563,15 @@ void trace_on_input(int32_t type, int32_t flags, int32_t a, int32_t b, int32_t c
             else if (!inside(&R_PICKER, g_mx, g_my)) { g_picker = 0; g_firstRun = 0; }
             break;
         }
+        if (g_themesOpen) {
+            // A click on a theme picks it; outside the popup closes it.
+            int r = theme_row_at(g_mx, g_my);
+            Rect m = pop_rect();
+            if (r >= 0) set_theme(r);
+            else if (!inside(&m, g_mx, g_my)) g_themesOpen = 0;
+            break;
+        }
+        if (inside(&R_THEME, g_mx, g_my)) { g_themesOpen = 1; break; }
         if (inside(&R_CLOSE, g_mx, g_my)) { g_quitting = 1; break; }
         if (inside(&R_REFRESH, g_mx, g_my)) { do_refresh(); break; }
         if (inside(&R_UNITS, g_mx, g_my)) {
@@ -2350,6 +2623,8 @@ void trace_update(void)
     draw_bar();
     draw_footer();
     if (g_picker) draw_picker();
+    else if (g_themesOpen) draw_themes();
+    if (g_theme == THEME_HACKER) phosphor();
 
     present_fitted(TRACE_PRESENT_ASPECT_4_3);
 }
