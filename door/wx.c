@@ -111,7 +111,7 @@ void wx_load_config(void)
 
 /* ------------------------------------------------------------- prefs --- */
 
-static const char *prefs_path(char *out, size_t size)
+const char *wx_saves_dir(char *out, size_t size)
 {
     char dir[1100];
     wx_beside_exe("saves", dir, sizeof dir);
@@ -123,7 +123,14 @@ static const char *prefs_path(char *out, size_t size)
     char sub[1300];
     snprintf(sub, sizeof sub, "%s/%s-%d", dir, who, door_info.user_record);
     mkdir(sub, 0755);
-    snprintf(out, size, "%s/prefs", sub);
+    snprintf(out, size, "%s", sub);
+    return out;
+}
+
+static const char *prefs_path(char *out, size_t size)
+{
+    char sub[1300];
+    snprintf(out, size, "%s/prefs", wx_saves_dir(sub, sizeof sub));
     return out;
 }
 

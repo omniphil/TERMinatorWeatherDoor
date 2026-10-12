@@ -24,7 +24,7 @@ typedef struct {
     char   place[WX_NAME_LEN];
     double lat, lon;
     int    units;
-    int    display;                /* last choice on the start page: 1 TRACE, 2 ANSI, 0 none */
+    int    display;                /* last choice on the start page: 1 TRACE, 2 ANSI, 3 JPEG XL, 0 none */
     int    theme;                  /* TRACE theme: 0 smooth, 1 retro tech, 2 cyberpunk, 3 hacker */
 } WxUserPrefs;
 
@@ -39,6 +39,9 @@ void wx_load_config(void);
 /* This caller's saved place and units (saves/<handle>-<usernum>/prefs). */
 void wx_load_prefs(WxUserPrefs *p);
 void wx_save_prefs(const WxUserPrefs *p);
+
+/* This caller's own folder (saves/<handle>-<usernum>), made if it's missing. */
+const char *wx_saves_dir(char *out, size_t size);
 
 /* Looks a place up by name, "City, ST" or postcode. Returns the number found
  * (0..WX_MAX_PLACES), or -1 when the lookup itself failed (network). */
